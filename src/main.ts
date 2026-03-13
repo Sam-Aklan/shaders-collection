@@ -1,271 +1,287 @@
-import './style.css'
-import * as THREE from 'three'
-import { GUI } from 'lil-gui';
+import * as THREE from "three";
+import { GUI } from "lil-gui";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
+import scanWireFrame from "./shaders/scanline/scanLineFragment.glsl";
+import scanLineVertex from "./shaders/scanline/vertexScanLine.glsl";
+import "./style.css";
 
-import vertexShader from './shaders/blob-trailer/vertexShader.glsl';
-import fragmenBlobTrailerShader from './shaders/blob-trailer/fragmentBlobTrailerShader.glsl';
-import fragmenRevealShader from './shaders/blob-trailer/fragmentReveal.glsl';
-import type { sharedUniformsType } from './types';
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(
+  75,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  1000,
+);
+camera.position.set(2, 2, 2);
+scene.background = new THREE.Color(0x000);
 
-const camera = new THREE.Camera()
-camera.position.z = 1;
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha:true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1;
+
 const canvas = document.getElementById('threejs-canvas');
 canvas?.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
 
-const trailScene = new THREE.Scene();   // PASS 1 (paint simulation)
-const mainScene = new THREE.Scene();    // PASS 2 (reveal + blob visual)
+// Loaders
+const gltfLoader = new GLTFLoader();
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath(
+  "https://www.gstatic.com/draco/versioned/decoders/1.5.6/",
+);
+gltfLoader.setDRACOLoader(dracoLoader);
 
-const rt1 = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
-  minFilter: THREE.LinearFilter,
-  magFilter: THREE.LinearFilter,
-  format:THREE.RGBAFormat,
-  type: THREE.HalfFloatType,
-  depthBuffer: false,
-  stencilBuffer: false
-});
 
-const rt2 = rt1.clone();
-let currentRT = rt1;
-let nextRT = rt2;
 
-renderer.setClearColor(0x000000, 0);
-renderer.setRenderTarget(rt1);
-renderer.clear();
-renderer.setRenderTarget(rt2);
-renderer.clear();
-renderer.setRenderTarget(null);
+// wireframe shaders
 
-// ======================
-// TEXTURES
-// ======================
-const loader = new THREE.TextureLoader();
+const scanLineUniforms = {
+ time: { value: 0 },
+    map: { value: null },              // optional texture
+    useMap: { value: false },
 
-const revealTexture = loader.load('helmet.png');
-revealTexture.wrapS = THREE.ClampToEdgeWrapping;
-revealTexture.wrapT = THREE.ClampToEdgeWrapping;
+    boundsMinY: { value: 0 },
+    boundsMaxY: { value: 1 },
 
-const noiseTexture = loader.load('perlin.png');
-noiseTexture.wrapS = THREE.RepeatWrapping;
-noiseTexture.wrapT = THREE.RepeatWrapping;
+    scanSpeed: { value: .2 },         // animation speed
+    scanThickness: { value: .03},     // band thickness
+    scanIntensity: { value: 10. },     // glow strength
+    distortionStrength: { value: 0.014},
 
-// ======================
-// SHARED INTERACTION SYSTEM (BLOB + PAINT)
-// ======================
-const mouse = {
-  x: 0.5, y: 0.5,
-  px: 0.5, py: 0.5,
-  vx: 0, vy: 0,
-  pressure: 0,
-  idle: 0
+    scanColor: { value: new THREE.Color(0x4beeee) }
 };
 
-const targetMouse = { x: 0.5, y: 0.5 };
-
-// ======================
-// UNIFORMS (ONE SOURCE OF TRUTH)
-// ======================
-const sharedUniforms:sharedUniformsType = {
-  uTime: { value: 0 },
-  uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-
-  // Interaction
-  uMouse: { value: new THREE.Vector2() },
-  uPrevMouse: { value: new THREE.Vector2() },
-  uMouseVelocity: { value: new THREE.Vector2(0, 0) },
-  uMousePressure: { value: 0 },
-  uIdle: { value: 0 },
-  uActivity: { value: 1 },
-
-  // Paint system
-  uPrevTrail: { value: null },
-  uTrail: { value: null },
-  uNoise: { value: noiseTexture },
-
-  // Reveal
-  uChannel1: { value: revealTexture },
-
-  // Blob visuals
-  uBlobSize: { value: 0.07 }
-};
-
-// ======================
-// GEOMETRY
-// ======================
-const quad = new THREE.PlaneGeometry(2, 2);
-
-// ======================
-// PASS 1: TRAIL SIMULATION MATERIAL
-// (Use your NEW unified metaball trail shader here)
-// ======================
-const trailMaterial = new THREE.ShaderMaterial({
-  vertexShader:vertexShader,
-  fragmentShader: fragmenBlobTrailerShader, // <- unified shader I gave you
-  uniforms: sharedUniforms
+const scanLineMatrial = new THREE.ShaderMaterial({
+  vertexShader: scanLineVertex,
+  fragmentShader: scanWireFrame,
+  uniforms: scanLineUniforms,
 });
 
-const trailMesh = new THREE.Mesh(quad, trailMaterial);
-trailScene.add(trailMesh);
 
-// ======================
-// PASS 2: REVEAL + BLOB VISUAL
-// (You can blend blob shader inside this later if desired)
-// ======================
-const mainMaterial = new THREE.ShaderMaterial({
-  vertexShader:vertexShader,
-  fragmentShader: fragmenRevealShader,
-  uniforms: sharedUniforms,
-  transparent: false
+// Load your 3D model
+
+let model;
+
+gltfLoader.load(
+  "./model/racing_helmet.glb",
+  (gltf) => {
+    model = gltf.scene;
+    model.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (mesh.isMesh) {
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+
+        // Handle materials (could be single or array)
+        const materials = Array.isArray(mesh.material) 
+          ? mesh.material 
+          : [mesh.material];
+
+        // Process each material
+        materials.forEach((material) => {
+          if (!material) return;
+          // Improve material quality
+          if ('envMapIntensity' in material) {
+            material.envMapIntensity = 1;
+          }
+
+          // Handle metalness (if material supports it)
+          if ('metalness' in material && material.metalness !== undefined) {
+            material.metalness = Math.min(
+              (material.metalness as number) * 1.2,
+              1
+            );
+          }
+
+          // Handle roughness (if material supports it)
+          if ('roughness' in material && material.roughness !== undefined) {
+            material.roughness = Math.max(
+              (material.roughness as number) * 0.8,
+              0.1
+            );
+          }
+
+          // Handle maps and replace material with scanLineMatrial
+          if ('map' in material && material.map) {
+            scanLineMatrial.uniforms.map.value = material.map;
+            scanLineMatrial.uniforms.useMap.value = true;
+          } else {
+            scanLineMatrial.uniforms.useMap.value = false;
+            
+            // Handle color property (could be Color, string, or number)
+            if ('color' in material) {
+              const color = material.color;
+              if (color && typeof color === 'object' && 'r' in color) {
+                scanLineMatrial.uniforms.scanColor.value = new THREE.Vector3(1.,1.,1.);
+              }
+            }
+          }
+        });
+
+        // Replace the material(s) with scanLineMatrial
+        mesh.material = Array.isArray(mesh.material) 
+          ? new Array(mesh.material.length).fill(scanLineMatrial)
+          : scanLineMatrial;
+
+        // Compute geometry bounding box if needed
+        if (mesh.geometry) {
+          mesh.geometry.computeBoundingBox();
+        }
+      }
+    });
+
+    // Center and scale the model
+    const box = new THREE.Box3().setFromObject(model);
+
+
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+
+
+    model.position.sub(center);
+    
+
+    // Calculate appropriate scale
+    const scaleMultiplayer = 270.;
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const scale = scaleMultiplayer / maxDim;
+    model.scale.setScalar(scale);
+
+    model.position.y = -400;
+    model.position.x = -100;
+
+   // 🔥 FORCE matrix update
+model.updateMatrixWorld(true);
+
+// 🔥 Now compute FINAL world bounds
+const finalBox = new THREE.Box3().setFromObject(model);
+
+scanLineMatrial.uniforms.boundsMinY.value = finalBox.min.y;
+scanLineMatrial.uniforms.boundsMaxY.value = finalBox.max.y;
+
+console.log("minY",finalBox.min.y,"maxY",finalBox.max.y)
+
+    scene.add(model);
+
+    // Focus camera on the model
+    
+    camera.position.set(-85.72, 252.941, 854.295);
+    // camera.position.set(0,0,0);
+    controls.target.copy(new THREE.Vector3());
+    controls.update();
+  },
+  (progress) => {
+    console.log(
+      `Loading: ${((progress.loaded / progress.total) * 100).toFixed(2)}%`,
+    );
+  },
+  (error) => {
+    console.error("Error loading model:", error);
+  },
+);
+
+// Balanced Lighting Setup
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.4); // Soft overall light
+scene.add(ambientLight);
+
+// Main directional light (simulating sun)
+const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+directionalLight.position.set(5, 5, 5);
+directionalLight.castShadow = true;
+directionalLight.shadow.mapSize.width = 2048;
+directionalLight.shadow.mapSize.height = 2048;
+directionalLight.shadow.camera.near = 0.5;
+directionalLight.shadow.camera.far = 50;
+directionalLight.shadow.camera.left = -10;
+directionalLight.shadow.camera.right = 10;
+directionalLight.shadow.camera.top = 10;
+directionalLight.shadow.camera.bottom = -10;
+scene.add(directionalLight);
+
+// Fill light from opposite side
+const fillLight = new THREE.DirectionalLight(0xffffff, 0.3);
+fillLight.position.set(-5, 2, -5);
+scene.add(fillLight);
+
+// Rim/back light for edge definition
+const rimLight = new THREE.DirectionalLight(0xffffff, 0.2);
+rimLight.position.set(0, 5, -5);
+scene.add(rimLight);
+
+// Soft top light
+const topLight = new THREE.DirectionalLight(0xffffff, 0.15);
+topLight.position.set(0, 10, 0);
+scene.add(topLight);
+
+// Optional: Hemisphere light for natural outdoor-like lighting
+const hemisphereLight = new THREE.HemisphereLight(0xffffbb, 0x080820, 0.2);
+scene.add(hemisphereLight);
+
+// Add a ground plane for shadows
+const groundGeometry = new THREE.PlaneGeometry(20, 20);
+const groundMaterial = new THREE.ShadowMaterial({
+  color: 0x000000,
+  opacity: 0.2,
 });
-
-const mainMesh = new THREE.Mesh(quad, mainMaterial);
-mainScene.add(mainMesh);
-
-// ======================
-// POINTER EVENTS (HIGH PRECISION)
-// ======================
-let hasMoved = false;
-renderer.domElement.addEventListener('pointermove', (e) => {
-  const rect = renderer.domElement.getBoundingClientRect();
-
-  const nx = (e.clientX - rect.left) / rect.width;
-  const ny = 1.0 - (e.clientY - rect.top) / rect.height;
-
-  targetMouse.x = nx;
-  targetMouse.y = ny;
-
-  if (!hasMoved) {
-    mouse.x = nx;
-    mouse.y = ny;
-    mouse.px = nx;
-    mouse.py = ny;
-    hasMoved = true;
-  }
-
-
-  mouse.pressure = e.buttons > 0 ? 1.0 : 0.0;
-});
-
-renderer.domElement.addEventListener('pointerdown', (e) => {
-  mouse.pressure = e.pressure > 0 ? .05 : 1.0;
-});
-
-renderer.domElement.addEventListener('pointerup', () => {
-  mouse.pressure = 0.0;
-});
-
-// ======================
-// RESIZE
-// ======================
-window.addEventListener('resize', () => {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-
-  renderer.setSize(w, h);
-  sharedUniforms.uResolution.value.set(w, h);
-
-  rt1.setSize(w, h);
-  rt2.setSize(w, h);
-});
+const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -1.5;
+ground.receiveShadow = true;
+// scene.add(ground);
 
 // GUI
 const gui = new GUI();
-// gui.add(sharedUniforms.uTime, 'value', 0, 10).name('Time');
-gui.add(camera.position, 'z',0,10).name('camera-z')
+const lightingFolder = gui.addFolder("Lighting");
+lightingFolder.add(ambientLight, "intensity", 0, 1, 0.01).name("Ambient Light");
+lightingFolder
+  .add(directionalLight, "intensity", 0, 2, 0.01)
+  .name("Main Light");
+lightingFolder.add(fillLight, "intensity", 0, 1, 0.01).name("Fill Light");
+lightingFolder.add(rimLight, "intensity", 0, 1, 0.01).name("Rim Light");
+lightingFolder
+  .add(renderer, "toneMappingExposure", 0.5, 2, 0.01)
+  .name("Exposure");
 
-// ======================
-// RESIZE
-// ======================
-window.addEventListener('resize', () => {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
+const cameraFolder = gui.addFolder("Camera");
+cameraFolder.add(camera.position, "x", -10, 10, 0.1).name("Camera X");
+cameraFolder.add(camera.position, "y", -10, 10, 0.1).name("Camera Y");
+cameraFolder.add(camera.position, "z", -10, 10, 0.1).name("Camera Z");
 
-  renderer.setSize(w, h);
-  sharedUniforms.uResolution.value.set(w, h);
+const scanLineFolder = gui.addFolder("scan line");
+scanLineFolder.add(scanLineUniforms.scanIntensity,"value",0,10,1.).name("intensity");
+scanLineFolder.add(scanLineUniforms.scanThickness,"value",0,.1,.01).name("thickness");
+scanLineFolder.add(scanLineUniforms.distortionStrength,"value",0,.05,.005).name("distortion");
+scanLineFolder.add(scanLineUniforms.scanSpeed,"value",0.1,.9,.1).name("speed");
 
-  rt1.setSize(w, h);
-  rt2.setSize(w, h);
+// Handle resize
+window.addEventListener("resize", () => {
+  renderer.setSize(renderer.domElement.width, renderer.domElement.height);
+  camera.aspect = renderer.domElement.width / renderer.domElement.height;
+  camera.updateProjectionMatrix();
+  controls.update();
 });
 
-// ======================
-// CLOCK
-// ======================
-const clock = new THREE.Clock();
+const clock = new THREE.Clock()
+// controls.addEventListener("change",()=>{
+//   console.log("coaridinates", camera.position)
+// })
 
-// ======================
-// MAIN LOOP (UNIFIED BRAIN)
-// ======================
+// Animation loop
 function animate() {
   requestAnimationFrame(animate);
+  controls.update();
+  camera.lookAt(0,0,0);
+  scanLineUniforms.time.value = clock.getElapsedTime()
 
-  const dt = clock.getDelta();
-  sharedUniforms.uTime.value += dt;
-
-  // === SMOOTH MOUSE (INERTIA) ===
-  const smooth = 0.35;
-  mouse.x += (targetMouse.x - mouse.x) * smooth;
-  mouse.y += (targetMouse.y - mouse.y) * smooth;
-
-  // === VELOCITY (CPU - STABLE) ===
-  const vx = mouse.x - mouse.px;
-  const vy = mouse.y - mouse.py;
-
-  mouse.vx += (vx - mouse.vx) * 0.2;
-  mouse.vy += (vy - mouse.vy) * 0.2;
-
-  const speed = Math.sqrt(mouse.vx * mouse.vx + mouse.vy * mouse.vy);
-
-  // === IDLE DETECTION (CRITICAL FOR DISSOLVE) ===
-  const threshold = 0.0008;
-  if (speed > threshold) {
-    mouse.idle = 0;
-  } else {
-    mouse.idle += dt;
-  }
-  mouse.idle = Math.min(mouse.idle, 10.0);
-
-  // Smooth activity
-  const targetActivity = speed > threshold ? 1.0 : 0.0;
-  sharedUniforms.uActivity.value += (targetActivity - sharedUniforms.uActivity.value) * 0.08;
-
-  // Save prev mouse BEFORE update
-  sharedUniforms.uPrevMouse.value.set(mouse.px, mouse.py);
-
-  // Send uniforms
-  sharedUniforms.uMouse.value.set(mouse.x, mouse.y);
-  sharedUniforms.uMouseVelocity.value.set(THREE.MathUtils.clamp(mouse.vx * 12.0,-0.15,0.15), THREE.MathUtils.clamp(mouse.vy * 12.0,-0.15,0.15));
-
-  sharedUniforms.uMousePressure.value = mouse.pressure * 5.;
-  sharedUniforms.uIdle.value = mouse.idle;
-
-  // Store previous for next frame
-  mouse.px = mouse.x;
-  mouse.py = mouse.y;
-
-  // ======================
-  // PASS 1: UPDATE PAINT BUFFER
-  // ======================
-  sharedUniforms.uPrevTrail.value = currentRT.texture;
-
-  renderer.setRenderTarget(nextRT);
-  renderer.render(trailScene, camera);
-  renderer.setRenderTarget(null);
-
-  // Swap FBOs
-  const temp = currentRT;
-  currentRT = nextRT;
-  nextRT = temp;
-
-  // Feed trail into reveal pass
-  sharedUniforms.uTrail.value = currentRT.texture;
-
-  // ======================
-  // PASS 2: FINAL RENDER (REVEAL)
-  // ======================
-  renderer.render(mainScene, camera);
+  renderer.render(scene, camera);
 }
-
 animate();
