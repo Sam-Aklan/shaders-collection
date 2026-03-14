@@ -3,8 +3,8 @@ import { GUI } from "lil-gui";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
-import scanWireFrame from "./shaders/scanline/scanLineFragment.glsl";
-import scanLineVertex from "./shaders/scanline/vertexScanLine.glsl";
+import fragmentWireFrame from "./shaders/wire-frame/fragmentWireFrame.glsl";
+import vertexWireFrame from "./shaders/wire-frame/vertexShader.glsl";
 import "./style.css";
 
 const scene = new THREE.Scene();
@@ -14,14 +14,13 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   1000,
 );
-camera.position.set(2, 2, 2);
-scene.background = new THREE.Color(0x000);
 
+camera.position.set(2, 2, 2);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1;
@@ -60,11 +59,63 @@ const scanLineUniforms = {
     scanColor: { value: new THREE.Color(0x4beeee) }
 };
 
-const scanLineMatrial = new THREE.ShaderMaterial({
-  vertexShader: scanLineVertex,
-  fragmentShader: scanWireFrame,
-  uniforms: scanLineUniforms,
+const wireUniforms = {
+  uLineWidth: { value: .5 },
+  uEdgeThreshold: { value: 0.1 },
+  uCreaseThreshold: { value: 0.3 },
+
+  uLineColor: { value: new THREE.Vector4(.02, 0.5, .8, .5) },
+  uBackgroundColor: { value: new THREE.Vector4(0, 0, 0, 0) },
+
+  uShowSilhouette: { value: true },
+  uShowCrease: { value: true },
+  uShowBorder: { value: true },
+
+  uNoiseAmount: { value: 0.1 },
+  uTime: { value: 0.0 },
+};
+
+const wireMaterial = new THREE.ShaderMaterial({
+  vertexShader: vertexWireFrame,
+  fragmentShader: fragmentWireFrame,
+  uniforms: wireUniforms,
+  transparent: true,
+  depthTest: true,
+  depthWrite: false,
 });
+
+// const scanLineMatrial = new THREE.ShaderMaterial({
+//   vertexShader: scanLineVertex,
+//   fragmentShader: scanWireFrame,
+//   uniforms: scanLineUniforms,
+// });
+
+function addBarycentricCoordinates(geometry:THREE.BufferGeometry<THREE.NormalBufferAttributes, THREE.BufferGeometryEventMap>) {
+  const count = geometry.attributes.position.count;
+  const barycentric = new Float32Array(count * 3);
+
+  for (let i = 0; i < count; i += 3) {
+    // Triangle vertex A
+    barycentric[(i + 0) * 3 + 0] = 1;
+    barycentric[(i + 0) * 3 + 1] = 0;
+    barycentric[(i + 0) * 3 + 2] = 0;
+
+    // Triangle vertex B
+    barycentric[(i + 1) * 3 + 0] = 0;
+    barycentric[(i + 1) * 3 + 1] = 1;
+    barycentric[(i + 1) * 3 + 2] = 0;
+
+    // Triangle vertex C
+    barycentric[(i + 2) * 3 + 0] = 0;
+    barycentric[(i + 2) * 3 + 1] = 0;
+    barycentric[(i + 2) * 3 + 2] = 1;
+  }
+
+  geometry.setAttribute(
+    "barycentric",
+    new THREE.BufferAttribute(barycentric, 3),
+  );
+}
 
 
 // Load your 3D model
@@ -110,31 +161,19 @@ gltfLoader.load(
             );
           }
 
-          // Handle maps and replace material with scanLineMatrial
-          if ('map' in material && material.map) {
-            scanLineMatrial.uniforms.map.value = material.map;
-            scanLineMatrial.uniforms.useMap.value = true;
-          } else {
-            scanLineMatrial.uniforms.useMap.value = false;
-            
-            // Handle color property (could be Color, string, or number)
-            if ('color' in material) {
-              const color = material.color;
-              if (color && typeof color === 'object' && 'r' in color) {
-                scanLineMatrial.uniforms.scanColor.value = new THREE.Vector3(1.,1.,1.);
-              }
-            }
-          }
+          
         });
-
-        // Replace the material(s) with scanLineMatrial
-        mesh.material = Array.isArray(mesh.material) 
-          ? new Array(mesh.material.length).fill(scanLineMatrial)
-          : scanLineMatrial;
 
         // Compute geometry bounding box if needed
         if (mesh.geometry) {
-          mesh.geometry.computeBoundingBox();
+           let geometry = mesh.geometry;
+          if (geometry.index) {
+            geometry = geometry.toNonIndexed();
+          }
+          addBarycentricCoordinates(geometry);
+          mesh.geometry = geometry;
+          mesh.material = wireMaterial;
+
         }
       }
     });
@@ -165,8 +204,8 @@ model.updateMatrixWorld(true);
 // 🔥 Now compute FINAL world bounds
 const finalBox = new THREE.Box3().setFromObject(model);
 
-scanLineMatrial.uniforms.boundsMinY.value = finalBox.min.y;
-scanLineMatrial.uniforms.boundsMaxY.value = finalBox.max.y;
+// scanLineMatrial.uniforms.boundsMinY.value = finalBox.min.y;
+// scanLineMatrial.uniforms.boundsMaxY.value = finalBox.max.y;
 
 console.log("minY",finalBox.min.y,"maxY",finalBox.max.y)
 
@@ -226,18 +265,6 @@ scene.add(topLight);
 const hemisphereLight = new THREE.HemisphereLight(0xffffbb, 0x080820, 0.2);
 scene.add(hemisphereLight);
 
-// Add a ground plane for shadows
-const groundGeometry = new THREE.PlaneGeometry(20, 20);
-const groundMaterial = new THREE.ShadowMaterial({
-  color: 0x000000,
-  opacity: 0.2,
-});
-const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-ground.rotation.x = -Math.PI / 2;
-ground.position.y = -1.5;
-ground.receiveShadow = true;
-// scene.add(ground);
-
 // GUI
 const gui = new GUI();
 const lightingFolder = gui.addFolder("Lighting");
@@ -256,11 +283,11 @@ cameraFolder.add(camera.position, "x", -10, 10, 0.1).name("Camera X");
 cameraFolder.add(camera.position, "y", -10, 10, 0.1).name("Camera Y");
 cameraFolder.add(camera.position, "z", -10, 10, 0.1).name("Camera Z");
 
-const scanLineFolder = gui.addFolder("scan line");
-scanLineFolder.add(scanLineUniforms.scanIntensity,"value",0,10,1.).name("intensity");
-scanLineFolder.add(scanLineUniforms.scanThickness,"value",0,.1,.01).name("thickness");
-scanLineFolder.add(scanLineUniforms.distortionStrength,"value",0,.05,.005).name("distortion");
-scanLineFolder.add(scanLineUniforms.scanSpeed,"value",0.1,.9,.1).name("speed");
+const wireframeFolder = gui.addFolder("wire-freme");
+wireframeFolder.add(wireUniforms.uLineWidth,"value",0,3.,.25).name("line-width");
+wireframeFolder.add(wireUniforms.uEdgeThreshold,"value",0,1,.01).name("edge-threshold");
+wireframeFolder.add(wireUniforms.uCreaseThreshold,"value",0,.5,.01).name("distortion");
+wireframeFolder.add(wireUniforms.uNoiseAmount,"value",0,1.,.1).name("speed");
 
 // Handle resize
 window.addEventListener("resize", () => {
