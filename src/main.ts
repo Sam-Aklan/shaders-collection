@@ -286,8 +286,8 @@ cameraFolder.add(camera.position, "z", -10, 10, 0.1).name("Camera Z");
 const wireframeFolder = gui.addFolder("wire-freme");
 wireframeFolder.add(wireUniforms.uLineWidth,"value",0,3.,.25).name("line-width");
 wireframeFolder.add(wireUniforms.uEdgeThreshold,"value",0,1,.01).name("edge-threshold");
-wireframeFolder.add(wireUniforms.uCreaseThreshold,"value",0,.5,.01).name("distortion");
-wireframeFolder.add(wireUniforms.uNoiseAmount,"value",0,1.,.1).name("speed");
+wireframeFolder.add(wireUniforms.uCreaseThreshold,"value",0,.5,.01).name("crease-threshold");
+wireframeFolder.add(wireUniforms.uNoiseAmount,"value",0,1.,.1).name("noise");
 
 // Handle resize
 window.addEventListener("resize", () => {
