@@ -1,6 +1,3 @@
-Here's the content formatted as a markdown file:
-
-markdown
 # 3D Parallax Shader Effect
 
 ## How It Works
