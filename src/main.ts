@@ -15,7 +15,6 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 const canvas = document.getElementById("threejs-canvas");
 
 canvas?.appendChild(renderer.domElement);
-// const controls = new OrbitControls(camera,renderer.domElement)
 
 const loader = new THREE.TextureLoader();
 
@@ -78,15 +77,14 @@ renderer.domElement.addEventListener("pointermove",ev=>{
 
 let hasLoaded = false;
 
-// const clock = new THREE.Clock();
 function animate() {
-// controls.update()
 requestAnimationFrame(animate);
-//   uniforms.uTime.value = clock.getElapsedTime();
+
 if(!hasLoaded && width && height){
 depthMapUniforms.uImageResolution.value.set(width,height);
 hasLoaded =true;
 }
+
   renderer.render(scene, camera);
 }
 animate();
