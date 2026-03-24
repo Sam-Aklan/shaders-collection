@@ -1,6 +1,3 @@
-Here's the content formatted as a markdown file:
-
-markdown
 # 3D Parallax Shader Effect
 
 ## How It Works
@@ -19,7 +16,7 @@ This map tells the shader which parts of the image should appear to "pop out" mo
 vec2 parallax = uMouse * depth * uStrength;
 vec2 finalUV = uv - parallax;
 Mouse position provides the view direction
-
+```
 Depth value controls displacement amount (closer = more movement)
 
 Strength adjusts the overall intensity
@@ -34,7 +31,7 @@ Compares screen vs image aspect ratios
 Scales UV coordinates to crop appropriately
 
 Centers the image with proper offsets
-
+```glsl
 Visual Example
 text
 Original Image    Depth Map        Result
@@ -53,6 +50,7 @@ uResolution	Screen dimensions
 uImageResolution	Original image dimensions
 Usage Ideas
 Interactive portraits - Make photos feel three-dimensional
+```
 
 Parallax backgrounds - Create depth in 2D scenes
 
