@@ -3,8 +3,8 @@ import { GUI } from "lil-gui";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
-import fragmentWireFrame from "./shaders/wire-frame/fragmentWireFrame.glsl";
-import vertexWireFrame from "./shaders/wire-frame/vertexShader.glsl";
+import fragmentWireFrame from "./shaders/wireframe-scanline/scanWireFrame.glsl";
+import vertexWireFrame from "./shaders/wireframe-scanline/scanWireVertex.glsl";
 import "./style.css";
 
 const scene = new THREE.Scene();
@@ -40,31 +40,29 @@ dracoLoader.setDecoderPath(
 gltfLoader.setDRACOLoader(dracoLoader);
 
 
-
-// wireframe shaders
-
-const scanLineUniforms = {
+// uniforms
+const scanWireFrameUniforms = {
  time: { value: 0 },
-    map: { value: null },              // optional texture
-    useMap: { value: false },
+ // scan shader
+  
 
     boundsMinY: { value: 0 },
     boundsMaxY: { value: 1 },
 
-    scanSpeed: { value: .2 },         // animation speed
-    scanThickness: { value: .03},     // band thickness
-    scanIntensity: { value: 10. },     // glow strength
-    distortionStrength: { value: 0.014},
+    scanSpeed: { value: .3 },         // animation speed
+    scanThickness: { value: .07},     // band thickness
+    scanIntensity: { value: 5. },     // glow strength
+    distortionStrength: { value: 0.015 },
 
-    scanColor: { value: new THREE.Color(0x4beeee) }
-};
+    scanColor: { value: new THREE.Color(0x45beee) },
 
-const wireUniforms = {
-  uLineWidth: { value: .5 },
+    // wireframe uniforms
+    uLineWidth: { value: .0001},
   uEdgeThreshold: { value: 0.1 },
   uCreaseThreshold: { value: 0.3 },
 
-  uLineColor: { value: new THREE.Vector4(.02, 0.5, .8, .5) },
+  uLineColor: { value: new THREE.Vector4(0, 0, 0, .25) },
+  // uLineColor: { value: '#45beee' },
   uBackgroundColor: { value: new THREE.Vector4(0, 0, 0, 0) },
 
   uShowSilhouette: { value: true },
@@ -72,23 +70,17 @@ const wireUniforms = {
   uShowBorder: { value: true },
 
   uNoiseAmount: { value: 0.1 },
-  uTime: { value: 0.0 },
 };
 
 const wireMaterial = new THREE.ShaderMaterial({
   vertexShader: vertexWireFrame,
   fragmentShader: fragmentWireFrame,
-  uniforms: wireUniforms,
+  uniforms: scanWireFrameUniforms,
   transparent: true,
   depthTest: true,
   depthWrite: false,
 });
 
-// const scanLineMatrial = new THREE.ShaderMaterial({
-//   vertexShader: scanLineVertex,
-//   fragmentShader: scanWireFrame,
-//   uniforms: scanLineUniforms,
-// });
 
 function addBarycentricCoordinates(geometry:THREE.BufferGeometry<THREE.NormalBufferAttributes, THREE.BufferGeometryEventMap>) {
   const count = geometry.attributes.position.count;
@@ -204,8 +196,8 @@ model.updateMatrixWorld(true);
 // 🔥 Now compute FINAL world bounds
 const finalBox = new THREE.Box3().setFromObject(model);
 
-// scanLineMatrial.uniforms.boundsMinY.value = finalBox.min.y;
-// scanLineMatrial.uniforms.boundsMaxY.value = finalBox.max.y;
+scanWireFrameUniforms.boundsMinY.value = finalBox.min.y;
+scanWireFrameUniforms.boundsMaxY.value = finalBox.max.y;
 
 console.log("minY",finalBox.min.y,"maxY",finalBox.max.y)
 
@@ -214,7 +206,7 @@ console.log("minY",finalBox.min.y,"maxY",finalBox.max.y)
     // Focus camera on the model
     
     camera.position.set(-85.72, 252.941, 854.295);
-    // camera.position.set(0,0,0);
+    
     controls.target.copy(new THREE.Vector3());
     controls.update();
   },
@@ -284,10 +276,10 @@ cameraFolder.add(camera.position, "y", -10, 10, 0.1).name("Camera Y");
 cameraFolder.add(camera.position, "z", -10, 10, 0.1).name("Camera Z");
 
 const wireframeFolder = gui.addFolder("wire-freme");
-wireframeFolder.add(wireUniforms.uLineWidth,"value",0,3.,.25).name("line-width");
-wireframeFolder.add(wireUniforms.uEdgeThreshold,"value",0,1,.01).name("edge-threshold");
-wireframeFolder.add(wireUniforms.uCreaseThreshold,"value",0,.5,.01).name("crease-threshold");
-wireframeFolder.add(wireUniforms.uNoiseAmount,"value",0,1.,.1).name("noise");
+wireframeFolder.add(scanWireFrameUniforms.uLineWidth,"value",0,3.,.25).name("line-width");
+wireframeFolder.add(scanWireFrameUniforms.uEdgeThreshold,"value",0,1,.01).name("edge-threshold");
+wireframeFolder.add(scanWireFrameUniforms.uCreaseThreshold,"value",0,.5,.01).name("crease-threshold");
+wireframeFolder.add(scanWireFrameUniforms.uNoiseAmount,"value",0,1.,.1).name("noise");
 
 // Handle resize
 window.addEventListener("resize", () => {
@@ -307,7 +299,7 @@ function animate() {
   requestAnimationFrame(animate);
   controls.update();
   camera.lookAt(0,0,0);
-  scanLineUniforms.time.value = clock.getElapsedTime()
+  scanWireFrameUniforms.time.value = clock.getElapsedTime()
 
   renderer.render(scene, camera);
 }
