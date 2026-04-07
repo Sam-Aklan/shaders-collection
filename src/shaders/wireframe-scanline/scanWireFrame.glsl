@@ -19,7 +19,6 @@ uniform float boundsMaxY;
 uniform float scanSpeed;
 uniform float scanThickness;
 uniform float scanIntensity;
-uniform vec3 scanColor;
 
 // Varyings
 varying vec3 vBarycentric;
