@@ -10,6 +10,7 @@
 #define CM vec3(.0)
 #define CE vec3(.8,.7,.5)
 
+precision mediump float;
 uniform vec2 uResolution;
 uniform float uTime;
 
@@ -41,28 +42,46 @@ vec3 samplef(in vec2 uv)
         metaball(uv - vec2(t0, t1), .38) *
         metaball(uv + vec2(t1, t2), .72);
 
-    vec3 blobColor = vec3(0.02, 0.03, 0.05);
     vec3 borderColor = vec3(0.2, 0.8, 1.0);
+    vec3 fillColor   = vec3(0.02, 0.03, 0.05);
 
-    // Blob body
-    float body = smoothstep(0.78, 0.95, r);
+    // Blob masks
+    float body   = smoothstep(0.78, 0.95, r);
 
-    // Thin border ring
     float border =
         smoothstep(0.58, 0.72, r) -
         smoothstep(0.72, 0.86, r);
 
-    // Outer spread shadow (CSS style)
     float shadow =
-        smoothstep(0.18, 0.58, r);
+        smoothstep(0.18, 0.58, r) * (1.0 - body);
 
-    shadow *= (1.0 - body);
+    // -------------------
+    // GRID
+    // -------------------
+    vec2 gv = uv * 7.0;
+
+    vec2 grid = abs(fract(gv - 0.5) - 0.5) / fwidth(gv);
+
+    float line = min(grid.x, grid.y);
+
+    float gridMask = 1.0 - smoothstep(0.0, 1.2, line);
+
+    // Clip grid only inside blob body
+    gridMask *= body;
 
     vec3 col = vec3(0.0);
 
-    col += borderColor * shadow * 0.65;
+    // Shadow
+    col += borderColor * shadow * 0.55;
+
+    // Fill
+    col += fillColor * body;
+
+    // Grid
+    col += borderColor * gridMask * 0.55;
+
+    // Border
     col += borderColor * border * 1.8;
-    col += blobColor * body;
 
     return col;
 }
