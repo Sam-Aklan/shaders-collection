@@ -84,7 +84,7 @@ renderer.domElement.addEventListener('pointermove', (e) => {
   targetMouse.x = nx;
   targetMouse.y = ny;
 
-  console.log("time:",performance.now())
+  // console.log("time:",performance.now())
 
   // Real pressure (works on stylus/touch, fallback for mouse)
   mouseProps.pressure = e.pressure > 0 ? e.pressure : 0.5;

@@ -18,27 +18,53 @@ float metaball(vec2 p, float r)
 	return r / dot(p, p);
 }
 
+float field(vec2 uv)
+{
+    float t0 = sin(uTime * 1.9) * .22;
+    float t1 = sin(uTime * 2.4) * .24;
+    float t2 = cos(uTime * 1.4) * .26;
+
+    return
+        metaball(uv + vec2(t0, t2), .45) +
+        metaball(uv - vec2(t0, t1), .38) +
+        metaball(uv + vec2(t1, t2), .72);
+}
+
 vec3 samplef(in vec2 uv)
 {
-	float t0 = sin(uTime * 1.9) * .22;
-float t1 = sin(uTime * 2.4) * .24;
-float t2 = cos(uTime * 1.4) * .26;
+    float t0 = sin(uTime * 1.9) * .22;
+    float t1 = sin(uTime * 2.4) * .24;
+    float t2 = cos(uTime * 1.4) * .26;
 
-	float r = metaball(uv + vec2(t0, t2), .18) *
-			  metaball(uv - vec2(t0, t1), .12) *
-			  metaball(uv + vec2(t1, t2), .46);
+    float r =
+        metaball(uv + vec2(t0, t2), .45) *
+        metaball(uv - vec2(t0, t1), .38) *
+        metaball(uv + vec2(t1, t2), .72);
 
-	vec3 baseColor = CO;
+    vec3 blobColor = vec3(0.02, 0.03, 0.05);
+    vec3 borderColor = vec3(0.2, 0.8, 1.0);
 
-    if (r > 0.95) baseColor = CI;
-    else if (r > 0.7) baseColor = CM;
+    // Blob body
+    float body = smoothstep(0.78, 0.95, r);
 
-    // BORDER GLOW
-    float glow = smoothstep(0.55, 0.72, r) - smoothstep(0.72, 0.95, r);
+    // Thin border ring
+    float border =
+        smoothstep(0.58, 0.72, r) -
+        smoothstep(0.72, 0.86, r);
 
-    vec3 glowColor = vec3(0.2, 0.8, 1.0) * glow * 2.0;
+    // Outer spread shadow (CSS style)
+    float shadow =
+        smoothstep(0.18, 0.58, r);
 
-    return baseColor + glowColor;
+    shadow *= (1.0 - body);
+
+    vec3 col = vec3(0.0);
+
+    col += borderColor * shadow * 0.65;
+    col += borderColor * border * 1.8;
+    col += blobColor * body;
+
+    return col;
 }
 
 void main( )
