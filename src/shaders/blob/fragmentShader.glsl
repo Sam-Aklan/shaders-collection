@@ -56,25 +56,33 @@ vec3 samplef(in vec2 uv)
         smoothstep(0.18, 0.58, r) * (1.0 - body);
 
  // -------------------
-// SEA-WAVE MEMBRANE GRID
+// SYNCED SEA-SKIN GRID
 // -------------------
 
 vec2 warp = uv;
 
-// wave directions
+// skin mask
+float skin = smoothstep(0.42, 0.95, r);
+
+// stronger near outer body, weaker center
+float tension =
+    smoothstep(0.35, 0.72, r) -
+    smoothstep(0.72, 0.98, r);
+
+// traveling waves
 float w1 = sin(uv.x * 3.0 + uTime * 0.8);
 float w2 = cos(uv.y * 2.6 + uTime * 0.7);
-float w3 = sin((uv.x + uv.y) * 2.2 + uTime * 0.6);
+float w3 = sin((uv.x + uv.y) * 2.1 + uTime * 0.6);
 
-// blob influence (only inside blob)
-float influence = smoothstep(0.45, 0.95, r);
+// synced displacement
+warp.x += (w2 + w3) * 0.030 * skin;
+warp.y += (w1 + w3) * 0.030 * skin;
 
-// displacement
-warp.x += (w2 + w3) * 0.035 * influence;
-warp.y += (w1 + w3) * 0.035 * influence;
+// extra stretch on blob necks / bulges
+warp += normalize(uv + 0.0001) * tension * 0.035;
 
 // grid
-vec2 gv = warp * 6.0;
+vec2 gv = warp * 5.0;
 
 vec2 grid = abs(fract(gv - 0.5) - 0.5) / fwidth(gv);
 
