@@ -55,19 +55,25 @@ vec3 samplef(in vec2 uv)
     float shadow =
         smoothstep(0.18, 0.58, r) * (1.0 - body);
 
-    // -------------------
-    // GRID
-    // -------------------
-    vec2 gv = uv * 7.0;
+  // -------------------
+// SKIN-ATTACHED GRID
+// -------------------
 
-    vec2 grid = abs(fract(gv - 0.5) - 0.5) / fwidth(gv);
+// derive distortion from metaball field
+vec2 warp = uv * (1.0 + r * 0.12);
 
-    float line = min(grid.x, grid.y);
+// grid scale
+vec2 gv = warp * 7.0;
 
-    float gridMask = 1.0 - smoothstep(0.0, 1.2, line);
+// clean lines
+vec2 grid = abs(fract(gv - 0.5) - 0.5) / fwidth(gv);
 
-    // Clip grid only inside blob body
-    gridMask *= body;
+float line = min(grid.x, grid.y);
+
+float gridMask = 1.0 - smoothstep(0.0, 1.5, line);
+
+// only inside blob
+gridMask *= body;
 
     vec3 col = vec3(0.0);
 
