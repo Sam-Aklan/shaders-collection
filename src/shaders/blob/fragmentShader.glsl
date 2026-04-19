@@ -55,24 +55,33 @@ vec3 samplef(in vec2 uv)
     float shadow =
         smoothstep(0.18, 0.58, r) * (1.0 - body);
 
-  // -------------------
-// SKIN-ATTACHED GRID
+ // -------------------
+// SEA-WAVE MEMBRANE GRID
 // -------------------
 
-// derive distortion from metaball field
-vec2 warp = uv * (1.0 + r * 0.12);
+vec2 warp = uv;
 
-// grid scale
-vec2 gv = warp * 7.0;
+// wave directions
+float w1 = sin(uv.x * 3.0 + uTime * 0.8);
+float w2 = cos(uv.y * 2.6 + uTime * 0.7);
+float w3 = sin((uv.x + uv.y) * 2.2 + uTime * 0.6);
 
-// clean lines
+// blob influence (only inside blob)
+float influence = smoothstep(0.45, 0.95, r);
+
+// displacement
+warp.x += (w2 + w3) * 0.035 * influence;
+warp.y += (w1 + w3) * 0.035 * influence;
+
+// grid
+vec2 gv = warp * 6.0;
+
 vec2 grid = abs(fract(gv - 0.5) - 0.5) / fwidth(gv);
 
 float line = min(grid.x, grid.y);
 
-float gridMask = 1.0 - smoothstep(0.0, 1.5, line);
+float gridMask = 1.0 - smoothstep(0.0, 1.2, line);
 
-// only inside blob
 gridMask *= body;
 
     vec3 col = vec3(0.0);
