@@ -38,11 +38,22 @@ vec3 samplef(in vec2 uv)
     float t1 = sin(uTime * 2.4) * .24;
     float t2 = cos(uTime * 1.4) * .26;
 
+vec2 p1 = vec2( t0,  t2);
+vec2 p2 = vec2(-t0, -t1);
+vec2 p3 = vec2( t1,  t2);
+
+// average center
+vec2 center = (p1 + p2 + p3) / 3.0;
+
+// recenter
+p1 -= center;
+p2 -= center;
+p3 -= center;
     
-    float r =
-    metaball(uv + vec2(t0, t2), mix(.45, .15, uActive)) *
-    metaball(uv - vec2(t0, t1), mix(.38, .08, uActive)) *
-    metaball(uv + vec2(t1, t2), mix(.72, .42, uActive));
+   float r =
+    metaball(uv - p1, mix(.45, .15, uActive)) *
+    metaball(uv - p2, mix(.38, .08, uActive)) *
+    metaball(uv - p3, mix(.72, .42, uActive));
 
     vec3 borderColor = vec3(0.2, 0.8, 1.0);
     vec3 fillColor   = vec3(0.02, 0.03, 0.05);
