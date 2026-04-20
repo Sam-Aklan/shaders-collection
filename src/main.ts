@@ -39,9 +39,10 @@ const uniforms = {
   uMorph: {value:0.},
     // NEW
   uIdle: { value: 0 },     // seconds since last movement
-  uActivity: { value: 1 }  // 0 = idle, 1 = active (smoothed)
+  uActive: { value: 0 }  // 0 = idle, 1 = active (smoothed)
 };
 
+// let targetUActiveState = 1;
 
 const geometry = new THREE.PlaneGeometry(2, 2);
 const blobShader = new THREE.ShaderMaterial({
@@ -58,6 +59,7 @@ const gui = new GUI();
 gui.add(uniforms.uTime, 'value', 0, 10).name('Time');
 gui.add(uniforms.uBlobSize, 'value', 0.1, 2.0).name('Blob Size');
 gui.add(camera.position, 'z', 0, 10).name('camera-z');
+gui.add(uniforms.uActive,'value',0,1,0.1).name("collapes")
 
 const clock = new THREE.Clock();
 
@@ -128,8 +130,8 @@ idleTime = Math.min(idleTime, 10.0);
 uniforms.uIdle.value = idleTime;
 
 // Smooth activity (BUTTERY interpolation)
-const targetActivity = speed > movementThreshold ? 1.0 : 0.0;
-uniforms.uActivity.value += (targetActivity - uniforms.uActivity.value) * 0.06;
+// const targetActivity = speed > movementThreshold ? 1.0 : 0.0;
+// uniforms.uActive.value += (targetActivity - uniforms.uActive.value) * 0.06;
 
   uniforms.uTime.value = clock.getElapsedTime();
     // 🔥 Smooth mouse (inertia)

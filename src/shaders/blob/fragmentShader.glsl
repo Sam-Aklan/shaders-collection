@@ -13,6 +13,7 @@
 precision mediump float;
 uniform vec2 uResolution;
 uniform float uTime;
+uniform float uActive;
 
 float metaball(vec2 p, float r)
 {
@@ -37,23 +38,29 @@ vec3 samplef(in vec2 uv)
     float t1 = sin(uTime * 2.4) * .24;
     float t2 = cos(uTime * 1.4) * .26;
 
+    
     float r =
-        metaball(uv + vec2(t0, t2), .45) *
-        metaball(uv - vec2(t0, t1), .38) *
-        metaball(uv + vec2(t1, t2), .72);
+    metaball(uv + vec2(t0, t2), mix(.45, .15, uActive)) *
+    metaball(uv - vec2(t0, t1), mix(.38, .08, uActive)) *
+    metaball(uv + vec2(t1, t2), mix(.72, .42, uActive));
 
     vec3 borderColor = vec3(0.2, 0.8, 1.0);
     vec3 fillColor   = vec3(0.02, 0.03, 0.05);
 
+// boost glow when active
+float glowBoost = mix(1.0, 2.2, uActive);
+
     // Blob masks
     float body   = smoothstep(0.78, 0.95, r);
 
-    float border =
-        smoothstep(0.58, 0.72, r) -
-        smoothstep(0.72, 0.86, r);
+    float borderWidth = mix(0.14, 0.08, uActive);
+
+float border =
+    smoothstep(0.58, 0.58 + borderWidth, r) -
+    smoothstep(0.72, 0.72 + borderWidth, r);
 
     float shadow =
-        smoothstep(0.18, 0.58, r) * (1.0 - body);
+        smoothstep(0.18, 0.48, r) * (1.0 - body);
 
  // -------------------
 // SYNCED SEA-SKIN GRID
@@ -75,11 +82,11 @@ float w2 = cos(uv.y * 2.6 + uTime * 0.7);
 float w3 = sin((uv.x + uv.y) * 2.1 + uTime * 0.6);
 
 // synced displacement
-warp.x += (w2 + w3) * 0.030 * skin;
-warp.y += (w1 + w3) * 0.030 * skin;
+warp.x += (w2 + w3) * 0.022 * skin;
+warp.y += (w1 + w3) * 0.022 * skin;
 
 // extra stretch on blob necks / bulges
-warp += normalize(uv + 0.0001) * tension * 0.035;
+warp += normalize(uv + 0.0001) * tension * 0.02;
 
 // grid
 vec2 gv = warp * 5.0;
@@ -94,8 +101,11 @@ gridMask *= body;
 
     vec3 col = vec3(0.0);
 
-    // Shadow
-    col += borderColor * shadow * 0.55;
+    // border
+col += borderColor * border * 1.8 * glowBoost;
+
+// shadow (outer glow)
+col += borderColor * shadow * 0.55 * glowBoost;
 
     // Fill
     col += fillColor * body;
