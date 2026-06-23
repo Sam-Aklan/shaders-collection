@@ -21,19 +21,19 @@ const mouseProps = {
   y: 0.5,
   px: 0.5,
   py: 0.5,
-  vx: 0,
-  vy: 0,
+  vx: 0, // veolicty x
+  vy: 0, // veolicty y
   pressure: 0
 }
 
-const targetMouse = { x: 0.5, y: 0.5 }; // for smoothing
+const targetMouse = new THREE.Vector2();; // for smoothing
 
 const uniforms = {
   uTime: { value: 0 },
   uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
   uBlobSize: {value:.5},
   // NEW INTERACTION UNIFORMS
-  uMouse: { value: new THREE.Vector2(0.5, 0.5) },
+  uMouse: { value: new THREE.Vector2() },
   uMouseVelocity: { value: new THREE.Vector2(0, 0) },
   uMousePressure: { value: 0 },
   uMorph: {value:0.},
@@ -80,11 +80,12 @@ renderer.domElement.addEventListener('pointermove', (e) => {
   const rect = renderer.domElement.getBoundingClientRect();
 
   // Normalize to 0–1 (VERY IMPORTANT)
-  const nx = (e.clientX - rect.left) / rect.width;
-  const ny = 1.0 - (e.clientY - rect.top) / rect.height;
+  const nx = (e.clientX - rect.left) ;
+  const ny = rect.height - (e.clientY - rect.top) ;
 
-  targetMouse.x = nx;
-  targetMouse.y = ny;
+  targetMouse.set(nx,ny);
+  console.log("targetMouse", targetMouse.x.toFixed(2), targetMouse.y.toFixed(2));
+  console.log("current postion", uniforms.uMouse.value.x.toFixed(2), uniforms.uMouse.value.y.toFixed(2))
 
   // console.log("time:",performance.now())
 
@@ -135,35 +136,36 @@ uniforms.uIdle.value = idleTime;
 
   uniforms.uTime.value = clock.getElapsedTime();
     // 🔥 Smooth mouse (inertia)
-  const smoothFactor = 0.15;
-  mouseProps.x += (targetMouse.x - mouseProps.x) * smoothFactor;
-  mouseProps.y += (targetMouse.y - mouseProps.y) * smoothFactor;
+  // const smoothFactor = 0.15;
+  // mouseProps.x += (targetMouse.x - mouseProps.x) * smoothFactor;
+  // mouseProps.y += (targetMouse.y - mouseProps.y) * smoothFactor;
 
   // 🧭 Compute velocity (CPU side — correct way)
-  const vx = mouseProps.x - mouseProps.px;
-  const vy = mouseProps.y - mouseProps.py;
+  // const vx = mouseProps.x - mouseProps.px;
+  // const vy = mouseProps.y - mouseProps.py;
 
   // Extra smoothing to avoid jittery blobs
-  mouseProps.vx += (vx - mouseProps.vx) * 0.2;
-  mouseProps.vy += (vy - mouseProps.vy) * 0.2;
+  // mouseProps.vx += (vx - mouseProps.vx) * 0.2;
+  // mouseProps.vy += (vy - mouseProps.vy) * 0.2;
 
   // Fake pressure from speed if using a mouse (optional but nice)
-  const morphSpeed = Math.sqrt(mouseProps.vx * mouseProps.vx + mouseProps.vy * mouseProps.vy);
-  if (mouseProps.pressure === 0.5) {
-    mouseProps.pressure = Math.min(morphSpeed * 8.0, 1.0);
-  }
+  // const morphSpeed = Math.sqrt(mouseProps.vx * mouseProps.vx + mouseProps.vy * mouseProps.vy);
+  // if (mouseProps.pressure === 0.5) {
+  //   mouseProps.pressure = Math.min(morphSpeed * 8.0, 1.0);
+  // }
 
   // const speed = Math.sqrt(mouseProps.vx * mouseProps.vx + mouseProps.vy * mouseProps.vy);
-uniforms.uMorph.value = Math.min(morphSpeed * 5.0, 1.0);
+// uniforms.uMorph.value = Math.min(morphSpeed * 5.0, 1.0);
 
   // Save previous position
-  mouseProps.px = mouseProps.x;
-  mouseProps.py = mouseProps.y;
+  // mouseProps.px = mouseProps.x;
+  // mouseProps.py = mouseProps.y;
 
   // 🎮 Send uniforms to shader
-  uniforms.uMouse.value.set(mouseProps.x, mouseProps.y);
-  uniforms.uMouseVelocity.value.set(mouseProps.vx * 5, mouseProps.vy * 5);
-  uniforms.uMousePressure.value = mouseProps.pressure * 2 ;
+  // uniforms.uMouse.value.set(mouseProps.x, mouseProps.y);
+  // uniforms.uMouseVelocity.value.set(mouseProps.vx * 5, mouseProps.vy * 5);
+  // uniforms.uMousePressure.value = mouseProps.pressure * 2 ;
+  uniforms.uMouse.value.lerp(targetMouse,0.12);
 
   renderer.render(scene, camera);
 }

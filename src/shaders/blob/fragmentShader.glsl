@@ -3,7 +3,7 @@
 // by nikos papadopoulos, 4rknova / 2013
 // Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
 
-#define AA 4.
+#define AA 2.
 
 #define CI vec3(.3,.5,.6)
 #define CO vec3(0.0745, 0.0862, 0.1058)
@@ -14,6 +14,7 @@ precision mediump float;
 uniform vec2 uResolution;
 uniform float uTime;
 uniform float uActive;
+uniform vec2 uMouse;
 
 float metaball(vec2 p, float r)
 {
@@ -59,7 +60,8 @@ p3 -= center;
     vec3 fillColor   = vec3(0.02, 0.03, 0.05);
 
 // boost glow when active
-float glowBoost = mix(1.0, 2.2, uActive);
+float glowBoost = mix(1.0, 1.45, uActive);
+float glowSpread = mix(1.0, 1.8, uActive);
 
     // Blob masks
     float body   = smoothstep(0.78, 0.95, r);
@@ -116,7 +118,7 @@ gridMask *= body;
 col += borderColor * border * 1.8 * glowBoost;
 
 // shadow (outer glow)
-col += borderColor * shadow * 0.55 * glowBoost;
+col += borderColor * shadow * 0.55 * glowSpread;
 
     // Fill
     col += fillColor * body;
@@ -125,29 +127,18 @@ col += borderColor * shadow * 0.55 * glowBoost;
     col += borderColor * gridMask * 0.55;
 
     // Border
-    col += borderColor * border * 1.8;
+    // col += borderColor * border * 1.8;
 
     return col;
 }
 
-void main( )
+void main()
 {
-	vec2 uv = (gl_FragCoord.xy / uResolution.xy * 2. - 1.)
-			* vec2(uResolution.x / uResolution.y, 1) * 1.25;
+    vec2 p = gl_FragCoord.xy - uMouse;
 
-    vec3 col = vec3(0);
+    vec2 uv = (p / uResolution.y) * 2.0 * 1.25;
 
-#ifdef AA
-    // Antialiasing via supersampling
-    float e = 1. / min(uResolution.y , uResolution.x);    
-    for (float i = -AA; i < AA; ++i) {
-        for (float j = -AA; j < AA; ++j) {
-    		col += samplef(uv + vec2(i, j) * (e/AA)) / (4.*AA*AA);
-        }
-    }
-#else
-    col += samplef(uv);
-#endif /* AA */
-    
-    gl_FragColor = vec4(clamp(col, 0., 1.), 1);
+    vec3 col = samplef(uv);
+
+    gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
