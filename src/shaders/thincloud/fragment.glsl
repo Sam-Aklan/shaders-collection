@@ -10,7 +10,7 @@ uniform float uCloudCutoff;      // Threshold for cloud formation (higher = fewe
 uniform float uCloudFeather;     // Softness of cloud boundaries
 uniform float uHazeAmount;       // Base level of constant atmospheric haze
 uniform float uCloudStretch;     // Elongation of clouds along wind direction (1.0 = isotropic/random)
-uniform float uCloudCoverage;    // Macro cloud coverage / patchiness (0.0 to 1.0)
+uniform float uCloudCoverage;    // Controls size/scale of the 5 clouds (0.0 to 1.0)
 uniform float uCurlStrength;     // Intensity of the swirling vortex/wrap effect
 
 varying vec2 vUv;
@@ -35,7 +35,7 @@ float noise(vec2 p) {
                    hash(i + vec2(1.0, 1.0)), u.x), u.y);
 }
 
-// Rotated 5-octave FBM to prevent axis-aligned grid patterns
+// Rotated 5-octave FBM for base potential field
 const mat2 rot = mat2(0.8, 0.6, -0.6, 0.8);
 float fbm(vec2 p) {
     float value = 0.0;
@@ -50,10 +50,24 @@ float fbm(vec2 p) {
     return value;
 }
 
+// Rotated 3-octave FBM for optimized local cloud details
+float fbm3(vec2 p) {
+    float value = 0.0;
+    float amplitude = 0.5;
+    float frequency = 1.0;
+    for (int i = 0; i < 3; i++) {
+        value += amplitude * noise(p * frequency);
+        p = rot * p;
+        frequency *= 2.0;
+        amplitude *= 0.5;
+    }
+    return value;
+}
+
 // Lightweight potential field for curl noise (generates large-scale vortices)
 float potential(vec2 p) {
-    // Evolve the potential field slowly over time to morph the vortex centers
-    return noise(p + vec2(uTime * 0.05));
+    // Evolve the potential field based on uWindSpeed * time for morphing speed
+    return noise(p + vec2(uTime * uWindSpeed * 2.0));
 }
 
 // 2D Curl Noise: computes a divergence-free velocity field from the potential
@@ -67,66 +81,67 @@ vec2 curl(vec2 p) {
     float p_x_up   = potential(p + dx);
     float p_x_down = potential(p - dx);
     
-    // Velocity = (d_potential/dy, -d_potential/dx)
     return vec2(p_y_up - p_y_down, p_x_down - p_x_up) / (2.0 * eps);
 }
 
 void main() {
-    // 1. Establish coordinate space with wind movement
+    // 1. Establish coordinate space (stationary, no global wind translation/drift)
     vec2 windDir = normalize(uWindDirection);
-    vec2 movingUv = vUv - windDir * uTime * uWindSpeed;
+    vec2 movingUv = vUv;
     
     // 2. Compute Curl Noise velocity field for local wrapping/swirling
-    // Scaling the coordinates determines the size of the swirling vortices
-    vec2 curlCoord = movingUv * uCloudScale * 0.2;
+    vec2 curlCoord = movingUv * uCloudScale * 0.15;
     vec2 velocity = curl(curlCoord);
     
-    // Warp the coordinates along the curl streamlines (swirl intensity)
+    // Warp the coordinate space along curl streamlines
     vec2 warpedMovingUv = movingUv + velocity * uCurlStrength * 0.1;
     
-    // 3. Low-frequency FBM for macro-scale "patchiness" (random shapes/groupings)
-    // We warp the mask coordinates for highly organic, non-linear cloud bank edges
-    vec2 maskUv = warpedMovingUv * uCloudScale * 0.25;
-    vec2 maskWarp = vec2(
-        fbm(maskUv + vec2(0.0, 0.0)),
-        fbm(maskUv + vec2(4.1, 2.8))
-    );
-    float maskNoise = fbm(maskUv + maskWarp * 1.2);
+    // 3. Define 5 dynamic cloud centers that wiggle subtly (controlled by uWindSpeed)
+    vec2 C[5];
+    C[0] = vec2(0.25, 0.35) + vec2(cos(uTime * uWindSpeed * 2.0), sin(uTime * uWindSpeed * 1.5)) * 0.03;
+    C[1] = vec2(0.75, 0.25) + vec2(sin(uTime * uWindSpeed * 2.5), cos(uTime * uWindSpeed * 1.0)) * 0.03;
+    C[2] = vec2(0.50, 0.55) + vec2(cos(uTime * uWindSpeed * 1.0), sin(uTime * uWindSpeed * 2.0)) * 0.02;
+    C[3] = vec2(0.30, 0.75) + vec2(sin(uTime * uWindSpeed * 1.5), cos(uTime * uWindSpeed * 2.5)) * 0.03;
+    C[4] = vec2(0.80, 0.70) + vec2(cos(uTime * uWindSpeed * 2.5), sin(uTime * uWindSpeed * 3.0)) * 0.03;
     
-    // The mask determines where clouds are allowed to form (0.0 to 1.0)
-    float cloudMask = smoothstep(1.0 - uCloudCoverage, 1.3 - uCloudCoverage, maskNoise);
+    // Cloud size factor governed by uCloudCoverage slider
+    float cloudSize = 0.25 * uCloudCoverage;
     
-    // 4. Project coordinates for high-frequency cloud detail (directional stretching)
+    float totalDensity = 0.0;
     vec2 perpDir = vec2(-windDir.y, windDir.x);
-    float windProj = dot(warpedMovingUv, windDir);
-    float perpProj = dot(warpedMovingUv, perpDir);
     
-    // Use the uCloudStretch parameter to control the cloud streakiness
-    vec2 stretchedUv = vec2(windProj / uCloudStretch, perpProj) * uCloudScale;
+    // 4. Calculate density for each of the 5 clouds with seamless wrapping
+    for (int i = 0; i < 5; i++) {
+        // Calculate shortest difference vector on a toroidal grid (0.0 to 1.0 wrapping)
+        vec2 diff = fract(warpedMovingUv - C[i] + 0.5) - 0.5;
+        float dist = length(diff);
+        
+        // Soft circular mask for this cloud instance
+        float mask = smoothstep(cloudSize, cloudSize * 0.2, dist);
+        
+        if (mask > 0.0) {
+            // Project diff coordinates to support stretch controls
+            float windProj = dot(diff, windDir);
+            float perpProj = dot(diff, perpDir);
+            vec2 stretchedUv = vec2(windProj / uCloudStretch, perpProj) * uCloudScale;
+            
+            // Micro-scale domain warping inside the cloud (morphs over time)
+            vec2 detailWarp = vec2(
+                fbm3(stretchedUv + vec2(0.0, 0.0) + uTime * uWindSpeed * 2.5),
+                fbm3(stretchedUv + vec2(3.1, 7.4) - uTime * uWindSpeed * 1.5)
+            );
+            
+            // FBM detailed noise
+            float n = fbm3(stretchedUv + detailWarp * 1.5);
+            
+            // Density curve
+            float d = mask * smoothstep(uCloudCutoff, uCloudCutoff + uCloudFeather, n);
+            totalDensity = max(totalDensity, d);
+        }
+    }
     
-    // 5. Domain warping for micro-scale wind shear turbulence/wisps
-    vec2 warpOffset = vec2(
-        fbm(stretchedUv + vec2(0.0, 0.0) + uTime * uWindSpeed * 0.1),
-        fbm(stretchedUv + vec2(5.2, 1.3) - uTime * uWindSpeed * 0.05)
-    );
-    
-    // Apply warp to final coordinates
-    vec2 finalUv = stretchedUv + warpOffset * 1.5;
-    
-    // 6. Calculate local detailed cloud density
-    float cloudNoise = fbm(finalUv);
-    
-    // Remap noise using smoothstep for wispy, fading boundaries
-    float edgeStart = uCloudCutoff;
-    float edgeEnd = uCloudCutoff + uCloudFeather;
-    float localDensity = smoothstep(edgeStart, edgeEnd, cloudNoise);
-    
-    // 7. Combine detailed noise with the macro-patchiness mask
-    float cloudDensity = localDensity * cloudMask;
-    
-    // 8. Add a base level of atmospheric haze (also modulated slightly by the mask for natural look)
-    float finalDensity = max(cloudDensity, uHazeAmount * cloudMask * (1.0 - cloudDensity));
-    finalDensity = max(finalDensity, uHazeAmount * 0.1); // Constant global minimum atmospheric haze
+    // 5. Add a base level of atmospheric haze (also wrapping-aware)
+    float finalDensity = max(totalDensity, uHazeAmount * 0.1);
     
     // Apply maximum opacity scaling
     float alpha = finalDensity * uCloudOpacity;
