@@ -40,9 +40,7 @@ gui.add(camera.position, 'z',0,10).name('camera-z')
 // Handle resize
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
-  // camera.aspect = window.innerWidth / window.innerHeight;
-  // camera.updateProjectionMatrix();
-  // camera.lookAt(0,0,0)
+ 
   uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
 });
 
