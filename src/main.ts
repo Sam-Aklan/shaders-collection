@@ -25,9 +25,9 @@ const uniforms = {
   uCloudCutoff: { value: 0.3 },
   uCloudFeather: { value: 0.4 },
   uHazeAmount: { value: 0.05 },
-  uCloudStretch: { value: 3.0 },
+  uCloudStretch: { value: 1.0 },
   uCloudCoverage: { value: 0.45 },
-  uCurlStrength: { value: 2.0 },
+  uCurlStrength: { value: 0.2 },
 };
 
 
