@@ -31,7 +31,6 @@ const targetMouse = new THREE.Vector2();; // for smoothing
 const uniforms = {
   uTime: { value: 0 },
   uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-  uBlobSize: {value:.5},
   // NEW INTERACTION UNIFORMS
   uMouse: { value: new THREE.Vector2() },
   uMouseVelocity: { value: new THREE.Vector2(0, 0) },
@@ -57,7 +56,6 @@ scene.add(mesh);
 // GUI
 const gui = new GUI();
 gui.add(uniforms.uTime, 'value', 0, 10).name('Time');
-gui.add(uniforms.uBlobSize, 'value', 0.1, 2.0).name('Blob Size');
 gui.add(camera.position, 'z', 0, 10).name('camera-z');
 gui.add(uniforms.uActive,'value',0,1,0.1).name("collapes")
 
