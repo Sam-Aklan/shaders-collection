@@ -4,15 +4,34 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>shaders-collection</title>
+    <title>3D Terrain Shader Viewer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
   </head>
   <body>
-     <div id="threejs-wrapper">
-
-      <div id="threejs-canvas">
-
+    <div id="ui-overlay">
+      <h1>Terrain Shader Viewer</h1>
+      <p>Interactive 3D landscape rendered using vertex heightmap displacement and custom fragment shading.</p>
+      <div class="divider"></div>
+      <div class="instructions">
+        <div class="instruction-item">
+          <div class="instruction-icon">🖱️</div>
+          <span><strong>Left Click + Drag:</strong> Rotate Orbit</span>
+        </div>
+        <div class="instruction-item">
+          <div class="instruction-icon">✋</div>
+          <span><strong>Right Click + Drag:</strong> Pan Camera</span>
+        </div>
+        <div class="instruction-item">
+          <div class="instruction-icon">🔍</div>
+          <span><strong>Scroll:</strong> Zoom In / Out</span>
+        </div>
       </div>
+    </div>
 
+    <div id="threejs-wrapper">
+      <div id="threejs-canvas"></div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
