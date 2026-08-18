@@ -18,15 +18,15 @@ canvas?.appendChild(renderer.domElement);
 const uniforms = {
   uTime: { value: 0 },
   uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-  uWindDirection: { value: new THREE.Vector2(Math.cos(0.3), Math.sin(0.3)) },
-  uWindSpeed: { value: 0.02 },
-  uCloudScale: { value: 8.0 },
-  uCloudOpacity: { value: 0.5 },
+  uWindDirection: { value: new THREE.Vector2(Math.cos(0.8), Math.sin(0.8)) },
+  uWindSpeed: { value: 0.08 },
+  uCloudScale: { value: 15},
+  uCloudOpacity: { value: 1.},
   uCloudCutoff: { value: 0.3 },
   uCloudFeather: { value: 0.4 },
   uHazeAmount: { value: 0.05 },
   uCloudStretch: { value: 1.0 },
-  uCloudCoverage: { value: 0.45 },
+  uCloudCoverage: { value: 0.8 },
   uCurlStrength: { value: 0.2 },
 };
 
